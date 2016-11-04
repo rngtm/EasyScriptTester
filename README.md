@@ -1,6 +1,6 @@
 EasyScriptTester
 ============
-**EasyScriptTester** is a tool to testing script method easily in Unity
+**EasyScriptTester** is a tool to test script methods easily in Unity
 
 Usage
 -------
