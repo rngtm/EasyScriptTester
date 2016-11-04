@@ -6,7 +6,11 @@ Usage
 -------
 1) Select "Tools/Easy Script Tester" in Menu.
 
+
+
 2) Select GameObject in Hierarchy.
+
+
 
 That's it!
 
