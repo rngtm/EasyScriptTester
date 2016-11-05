@@ -1,6 +1,6 @@
 ﻿///-----------------------------------
 /// EasyScriptTester
-/// @ 2016 RNGTM
+/// @ 2016 RNGTM(https://github.com/rngtm/Test)
 ///-----------------------------------
 namespace EasyScriptTester
 {
