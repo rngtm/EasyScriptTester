@@ -6,13 +6,17 @@ Usage
 -------
 1) Select "Tools/Easy Script Tester" in Menu.
 
-
+<br>
 
 2) Select GameObject in Hierarchy.
 
+<br>
 
 
 That's it!
+<br>
+
+![](./Demo/demo.gif)
 
 License
 -------
