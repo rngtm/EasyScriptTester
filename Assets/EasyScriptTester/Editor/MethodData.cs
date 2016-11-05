@@ -1,6 +1,6 @@
 ﻿///-----------------------------------
 /// EasyScriptTester
-/// @ 2016 RNGTM(https://github.com/rngtm/Test)
+/// @ 2016 RNGTM(https://github.com/rngtm)
 ///-----------------------------------
 namespace EasyScriptTester
 {
@@ -47,9 +47,9 @@ namespace EasyScriptTester
 
         public class ParameterData
 		{
-			public ParameterInfo ParameterInfo; 
+			public ParameterInfo ParameterInfo;
 			public object Value;
 		}
-		
+
 	}
 }
