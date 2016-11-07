@@ -357,7 +357,7 @@ namespace EasyScriptTester
             RegisterInputFieldAction(typeof(UnityEngine.Object), (name, obj) => EditorGUILayout.ObjectField(name, (UnityEngine.Object)obj, typeof(UnityEngine.Object), true, EmptyOptions));
 
             RegisterInputFieldAction(typeof(Int64), (name, obj) => EditorGUILayout.LongField(name, (Int64)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Char), (name, obj) => { EditorGUILayout.LabelField(name, "", EmptyOptions); return '\0'; });
+            RegisterInputFieldAction(typeof(Char), (name, obj) => CharField(name, (Char)obj, EmptyOptions));
 
             // Register array actions
             RegisterInputFieldAction(typeof(Int32[]), ArrayInputField);
@@ -394,6 +394,16 @@ namespace EasyScriptTester
         private static void RegisterInputFieldAction(Type type, Func<string, object, object> func)
         {
             inputFieldActionDict.Add(type, func);
+        }
+
+        /// <summary>
+        /// char型の入力フィールド
+        /// </summary>
+        /// <returns></returns>
+        private static char CharField(string label, char c, params GUILayoutOption[] option)
+        {
+            var s = EditorGUILayout.TextField(label, c.ToString(), EmptyOptions);
+            return c == default(char) ? ' ' : s[0];
         }
 
         /// <summary>
