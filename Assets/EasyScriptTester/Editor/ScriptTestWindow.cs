@@ -103,8 +103,11 @@ namespace EasyScriptTester
                 if (index >= isOpen.Length) { return; }
 
                 // コンポーネント 表示
-                var componentType = item.componentData.ComponentType;
-                var componentLabel = this.GetComponentLabel(componentType, item.componentData.ObjectType);
+                var componentData = item.componentData;
+                var componentType = componentData.ComponentType;
+                var objectType = componentData.ObjectType;
+                var scriptType = componentData.ScriptType;
+                var componentLabel = this.GetComponentLabel(componentType, objectType, scriptType);
                 isOpen[index] = CustomUI.Foldout(componentLabel, isOpen[index]);
                 if (isOpen[index] == false) { continue; }
 
@@ -145,7 +148,6 @@ namespace EasyScriptTester
                         else
                         if (componentType.IsSubclassOf(typeof(MonoBehaviour))) // MonoBehaviour script
                         {
-                            var objectType = item.componentData.ObjectType;
                             var selectObject = item.componentData.Object;
                             switch (objectType)
                             {
@@ -227,15 +229,30 @@ namespace EasyScriptTester
         /// <summary>
         /// ComponentのFoldOut用のラベルを取得
         /// </summary>
-        private string GetComponentLabel(Type componentType, ObjectType objectType)
+        private string GetComponentLabel(Type componentType, ObjectType objectType, ScriptType scriptType)
         {
             var componentName = (_isShowComponentFullName) ? componentType.FullName : componentType.Name;
+            var extension = string.Empty;
+
+            switch (scriptType)
+            {
+                case ScriptType.None:
+                    extension = "";
+                    break;
+                case ScriptType.CSharp:
+                    extension = ".cs";
+                    break;
+                case ScriptType.JavaScript:
+                    extension = ".js";
+                    break;
+            }
+
             switch (objectType)
             {
                 case ObjectType.GameObject:
                     return componentName;
                 case ObjectType.MonoScript:
-                    return componentName + ".cs";
+                    return componentName + extension;
                 default:
                     throw new System.NotImplementedException();
             }
@@ -318,7 +335,7 @@ namespace EasyScriptTester
                 var componentTypes = GetAllComponents(obj)
                     .Where(type => type.ToString().Split('.')[0] != "UnityEngine")
                     .ToArray();
-                componentDatas.AddRange(componentTypes.Select(t => new ComponentData(obj, ObjectType.GameObject, t)));
+                componentDatas.AddRange(componentTypes.Select(t => new ComponentData(obj, ObjectType.GameObject, t, ScriptType.None)));
             });
 
             // Projectビューで選択しているスクリプト
@@ -330,7 +347,18 @@ namespace EasyScriptTester
             {
                 // コンポーネント取得
                 var componentType = GetScriptClass(obj);
-                componentDatas.Add(new ComponentData(obj, ObjectType.MonoScript, componentType));
+                var extension = AssetDatabase.GetAssetPath(obj).Split('.').Last();
+                var scriptType = default(ScriptType);
+                switch (extension)
+                {
+                    case "cs":
+                        scriptType = ScriptType.CSharp;
+                        break;
+                    case "js":
+                        scriptType = ScriptType.JavaScript;
+                        break;
+                }
+                componentDatas.Add(new ComponentData(obj, ObjectType.MonoScript, componentType, scriptType));
             });
 
             this.componentDatas = componentDatas.Where(c => c.IsSuccess).ToArray();

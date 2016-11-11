@@ -26,6 +26,11 @@ namespace EasyScriptTester
         public Type ComponentType { get; private set; }
 
         /// <summary>
+        /// スクリプトの種類
+        /// </summary>
+        public ScriptType ScriptType { get; private set; }
+
+        /// <summary>
         /// オブジェクトの種類
         /// </summary>
         public ObjectType ObjectType { get; private set; }
@@ -44,7 +49,7 @@ namespace EasyScriptTester
         /// <summary>
         /// コンストラクタ
         /// </summary>
-        public ComponentData(Object obj, ObjectType objType, Type componentType)
+        public ComponentData(Object obj, ObjectType objType, Type componentType, ScriptType scriptType)
         {
             if (componentType == null)
             {
@@ -55,6 +60,7 @@ namespace EasyScriptTester
             this.IsSuccess = true;
             this.Object = obj;
             this.ObjectType = objType;
+            this.ScriptType = scriptType;
             this.ComponentType = componentType;
             this.MethodDatas = ExtractMethods(componentType)
               .Select(methodInfo => new MethodData(methodInfo))
