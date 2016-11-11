@@ -298,11 +298,12 @@ namespace EasyScriptTester
         }
 
         /// <summary>
-        /// 選択中のオブジェクトからコン ポーネントとメソッド一覧を取り出す
+        /// 選択中のオブジェクトからコンポーネントとメソッド一覧を取り出す
         /// </summary>
         private void Extract()
         {
             if (Resources.FindObjectsOfTypeAll<EditorWindow>().Contains(this) == false) { return; }
+            if (EditorApplication.isCompiling) { return; }
 
             var componentDatas = new List<ComponentData>();
 
