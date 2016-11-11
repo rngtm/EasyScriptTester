@@ -4,17 +4,24 @@
 ///-----------------------------------
 namespace EasyScriptTester
 {
-	using System;
+    using System;
     using System.Linq;
-	using System.Reflection;
+    using System.Reflection;
 
     /// <summary>
     /// Method data
     /// </summary>
-	public class MethodData
-	{
-		public MethodInfo MethodInfo { get; private set; }
-		public ParameterData[] Parameters { get; private set; }
+    public class MethodData
+    {
+        /// <summary>
+        /// MethodInfo
+        /// </summary>
+        public MethodInfo MethodInfo { get; private set; }
+
+        /// <summary>
+        /// メソッドのパラメーターに関する情報
+        /// </summary>
+        public ParameterData[] Parameters { get; private set; }
 
         /// <summary>
         /// コンストラクタ
@@ -22,6 +29,7 @@ namespace EasyScriptTester
         public MethodData(MethodInfo methodInfo)
         {
             this.MethodInfo = methodInfo;
+
             this.Parameters = methodInfo.GetParameters().Select(p =>
             {
                 return new MethodData.ParameterData
@@ -46,10 +54,10 @@ namespace EasyScriptTester
         }
 
         public class ParameterData
-		{
-			public ParameterInfo ParameterInfo;
-			public object Value;
-		}
+        {
+            public ParameterInfo ParameterInfo;
+            public object Value;
+        }
 
-	}
+    }
 }

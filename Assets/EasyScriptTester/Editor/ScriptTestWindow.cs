@@ -4,13 +4,13 @@
 ///-----------------------------------
 namespace EasyScriptTester
 {
+    using System;
+    using System.Linq;
+    using System.Collections;
     using System.Collections.Generic;
     using UnityEngine;
     using UnityEditor;
     using UnityEditor.Callbacks;
-    using System;
-    using System.Reflection;
-    using System.Linq;
 
     /// <summary>
     /// This is a script testing window.
@@ -20,27 +20,24 @@ namespace EasyScriptTester
         /// <summary>
         /// ボタンの大きさ
         /// </summary>
-        private const float ButtonSize = 32f;
+        private const float ButtonWidth = 32f;
+
+        /// <summary>
+        /// ボタンの大きさ
+        /// </summary>
+        private const float ButtonHeight = 17f;
 
         /// <summary>
         /// インデント幅
         /// </summary>
         private const float IndentSize = 18f;
 
-        /// <summary>
-        /// The empty options.
-        /// </summary>
-        static GUILayoutOption[] EmptyOptions = new GUILayoutOption[0];
+        #region Variables
 
         /// <summary>
-        /// Componentのタイプ
+        /// 選択しているObjectのComponenttのデータ
         /// </summary>
-        private Type[] componentTypes;
-
-        /// <summary>
-        /// Componentに対応するメソッド
-        /// </summary>
-        private MethodData[][] methodsCollection;
+        private ComponentData[] componentDatas;
 
         /// <summary>
         /// Scroll位置
@@ -55,20 +52,35 @@ namespace EasyScriptTester
         /// <summary>
         /// EditorApplicationコールバック設定フラグ
         /// </summary>
-        private static bool needSetCallbacks = true;
+        private static bool _needSetCallbacks = true;
 
         /// <summary>
-        /// Typeに応じた入力フィールド表示ロジック
+        /// コンポーネント名をすべて表示するかどうか
         /// </summary>
-        private static Dictionary<Type, Func<string, object, object>> inputFieldActionDict = new Dictionary<Type, Func<string, object, object>>();
+        private static bool _isShowComponentFullName = true;
+
+        /// <summary>
+        /// 引数のタイプをすべて表示するかどうか
+        /// </summary>
+        private static bool _isShowParameterTypeFullName = false;
+
+        private static IEnumerable<MonoScript> _monoScripts;
+        #endregion Variables
+
+        #region Properties
+        /// <summary>
+        /// プロジェクトに存在する全スクリプトアセット
+        /// </summary>
+        private static IEnumerable<MonoScript> MonoScripts { get { return _monoScripts ?? (_monoScripts = Resources.FindObjectsOfTypeAll<MonoScript>()); } }
+        #endregion Properties
 
         /// <summary>
         /// ウィンドウを開く
         /// </summary>
         [MenuItem("Tools/Easy Script Tester", false, 10000)]
-        static void Open()
+        private static void Open()
         {
-            needSetCallbacks = true;
+            _needSetCallbacks = true;
             GetWindow<ScriptTestWindow>();
         }
 
@@ -77,63 +89,130 @@ namespace EasyScriptTester
         /// </summary>
         private void OnGUI()
         {
-            EditorGUILayout.LabelField("選択しているGameObjectのメソッド一覧が表示されます。");
+            EditorGUILayout.LabelField("選択しているオブジェクトのメソッド一覧が表示されます。");
             EditorGUILayout.Space();
 
-            if (Selection.activeGameObject == null) { return; }
-            if (this.componentTypes == null) { return; }
-            if (this.methodsCollection == null) { return; }
+            if (this.componentDatas == null) { return; }
 
             this.scrollPosition = EditorGUILayout.BeginScrollView(this.scrollPosition);
 
             // コンポーネントとメソッド一覧 表示
-            foreach (var item in this.componentTypes.Select((t, i) => new { componentType = t, index = i }))
+            foreach (var item in this.componentDatas.Select((data, i) => new { componentData = data, index = i }))
             {
                 var index = item.index;
-                var componentType = item.componentType;
+                if (index >= isOpen.Length) { return; }
 
-                // コンポーネント表示
-                isOpen[index] = Foldout(componentType.ToString(), isOpen[index]);
+                // コンポーネント 表示
+                var componentType = item.componentData.ComponentType;
+                var componentLabel = this.GetComponentLabel(componentType, item.componentData.ObjectType);
+                isOpen[index] = CustomUI.Foldout(componentLabel, isOpen[index]);
                 if (isOpen[index] == false) { continue; }
 
                 GUILayout.Space(-5f);
 
-                // メソッド表示
-                this.methodsCollection.ElementAt(index).ToList().ForEach(method =>
+                // メソッド一覧 表示
+                this.componentDatas[index].MethodDatas.ToList().ForEach(method =>
                 {
                     GUILayout.Space(3f);
                     EditorGUILayout.BeginHorizontal();
                     GUILayout.Space(IndentSize);
-                    if (GUILayout.Button("実行", GUILayout.Width(ButtonSize), GUILayout.Height(17f)))
-                    {
-                        // メソッド実行
-                        var obj = Selection.activeGameObject.GetComponent(componentType);
-                        var parameters = method.Parameters
-                            .Select(p => Convert.ChangeType(p.Value, p.ParameterInfo.ParameterType))
-                            .ToArray();
 
-                        var arg = parameters.Length == 0 ? "" : parameters.Select(p => (p ?? "null").ToString()).Aggregate((s, next) => s + "," + next);
-                        Debug.Log("Invoke : " + method.MethodInfo.Name + " (" + arg + ")");
-                        method.MethodInfo.Invoke(obj, parameters);
+                    if (GUILayout.Button("実行", GUILayout.Width(ButtonWidth), GUILayout.Height(ButtonHeight)))
+                    {
+                        var parameters = method.Parameters.Select(p => Convert.ChangeType(p.Value, p.ParameterInfo.ParameterType)).ToArray();
+                        var args = parameters.Length == 0 ? "" : parameters.Select(p => (p ?? "null").ToString()).Aggregate((s, next) => s + "," + next);
+                        Debug.Log(method.MethodInfo.Name + " (" + args + ")");
+
+                        if (IsEditorScript(componentType)) // Editor script
+                        {
+                            if (componentType.IsSubclassOf(typeof(Editor)))
+                            {
+                                var instance = ScriptableObject.CreateInstance(componentType);
+                                method.MethodInfo.Invoke(instance, parameters);
+                            }
+                            else
+                            if (componentType.IsSubclassOf(typeof(EditorWindow)))
+                            {
+                                var instance = ScriptableObject.CreateInstance(componentType);
+                                method.MethodInfo.Invoke(instance, parameters);
+                            }
+                            else
+                            {
+                                var instance = Activator.CreateInstance(componentType);
+                                method.MethodInfo.Invoke(instance, parameters);
+                            }
+                        }
+                        else
+                        if (componentType.IsSubclassOf(typeof(MonoBehaviour))) // MonoBehaviour script
+                        {
+                            var objectType = item.componentData.ObjectType;
+                            var selectObject = item.componentData.Object;
+                            switch (objectType)
+                            {
+                                case ObjectType.GameObject:
+                                    {
+                                        if (method.MethodInfo.ReturnType == typeof(IEnumerator))
+                                        {
+                                            // コルーチン実行
+                                            var component = (selectObject as GameObject).GetComponent(componentType);
+                                            var monoBehaviourType = componentType.BaseType;
+                                            var argumentTypes = new Type[] { typeof(IEnumerator) };
+                                            var coroutine = method.MethodInfo.Invoke(component, parameters);
+                                            var startCoroutine = monoBehaviourType.GetMethod("StartCoroutine", argumentTypes);
+                                            startCoroutine.Invoke(component, new object[] { coroutine });        
+
+                                            if (EditorApplication.isPlaying == false) { Debug.LogWarning("コルーチンはエディタ停止中には実行できません\nCoroutine can only be called in play mode"); } 
+                                        }
+                                        else
+                                        {
+                                            // メソッド実行
+                                            var component = (selectObject as GameObject).GetComponent(componentType);
+                                            method.MethodInfo.Invoke(component, parameters);
+                                        }
+                                        
+                                        break;
+                                    }
+                                case ObjectType.MonoScript:
+                                    {
+                                        // メソッド実行
+                                        var component = new GameObject().AddComponent(componentType);
+                                        method.MethodInfo.Invoke(component, parameters);
+                                        DestroyImmediate(component.gameObject);
+                                        
+                                        if (method.MethodInfo.ReturnType == typeof(IEnumerator))
+                                        {
+                                            // スクリプト選択時のコルーチン呼び出しは未実装
+                                            Debug.LogWarning("スクリプトファイルのコルーチン実行は非対応です\nScript Coroutine is not supported ");
+                                        }
+                                        break;
+                                    }
+                                default:
+                                    throw new System.NotImplementedException();
+
+                            }
+                        }
+                        else // other script
+                        {
+                            var instance = Activator.CreateInstance(componentType);
+                            method.MethodInfo.Invoke(instance, parameters);
+                        }
                     }
 
-                    // メソッドを表示
-                    EditorGUILayout.LabelField(method.MethodInfo.Name + " : " + method.MethodInfo.ReturnType.ToString().Split('.', '+').Last());
+                    // メソッド表示
+                    EditorGUILayout.LabelField(method.MethodInfo.Name + " : " + method.MethodInfo.ReturnType.Name);
+
                     EditorGUILayout.EndHorizontal();
 
                     // メソッドが引数を持っていた場合は引数入力フィールドを出す
                     method.Parameters.ToList().ForEach(p =>
                     {
-                        GUILayout.Space(-1f);
-                        EditorGUILayout.BeginHorizontal();
-                        GUILayout.Space(IndentSize * 2);
+                      string label = this.GetParameterLabel(p.ParameterInfo);
 
-                        // 入力フィールドの表示
-                        string label = p.ParameterInfo.Name + "  : " + p.ParameterInfo.ParameterType.ToString().Split('.', '+').Last();
-                        p.Value = InputField(label, p.ParameterInfo.ParameterType, p.Value);
-
-                        EditorGUILayout.EndHorizontal();
-                    });
+                      GUILayout.Space(-1f);
+                      EditorGUI.indentLevel += 2;
+                      p.Value = CustomUI.InputField(label, p.ParameterInfo.ParameterType, p.Value);
+                      EditorGUI.indentLevel -= 2;
+                  });
 
                     GUILayout.Space(1f);
                     this.Line(1);
@@ -146,12 +225,52 @@ namespace EasyScriptTester
         }
 
         /// <summary>
+        /// ComponentのFoldOut用のラベルを取得
+        /// </summary>
+        private string GetComponentLabel(Type componentType, ObjectType objectType)
+        {
+            var componentName = (_isShowComponentFullName) ? componentType.FullName : componentType.Name;
+            switch (objectType)
+            {
+                case ObjectType.GameObject:
+                    return componentName;
+                case ObjectType.MonoScript:
+                    return componentName + ".cs";
+                default:
+                    throw new System.NotImplementedException();
+            }
+        }
+
+        /// <summary>
+        /// 引数入力フィールド用のラベルを取得
+        /// </summary>
+        private string GetParameterLabel(System.Reflection.ParameterInfo parameterInfo)
+        {
+            if (_isShowParameterTypeFullName)
+            {
+                return parameterInfo.Name + "  : " + parameterInfo.ParameterType.ToString();
+            }
+            else
+            {
+                return parameterInfo.Name + "  : " + parameterInfo.ParameterType.Name;
+            }
+        }
+
+        /// <summary>
+        /// コンポーネントがEditorスクリプトかどうか
+        /// </summary>
+        private static bool IsEditorScript(Type componentType)
+        {
+            return componentType.Module.Name == "Assembly-CSharp-Editor.dll";
+        }
+
+        /// <summary>
         /// スクリプトロード時に呼ばれる
         /// </summary>
         [DidReloadScripts]
-        static void OnDidReloadScripts()
+        private static void OnDidReloadScripts()
         {
-            needSetCallbacks = true;
+            _needSetCallbacks = true;
         }
 
         /// <summary>
@@ -159,14 +278,15 @@ namespace EasyScriptTester
         /// </summary>
         private void Update()
         {
-            if (needSetCallbacks)
+            if (_needSetCallbacks)
             {
-                InitializeInputFieldAction();
-                needSetCallbacks = false;
+                CustomUI.Initialize();
+                _needSetCallbacks = false;
                 Selection.selectionChanged += this.Extract;
                 this.Extract();
             }
-            Repaint();
+
+            this.Repaint();
         }
 
         /// <summary>
@@ -178,65 +298,59 @@ namespace EasyScriptTester
         }
 
         /// <summary>
-        /// 選択中のGameObjectからコンポーネントとメソッド一覧を取り出す
+        /// 選択中のオブジェクトからコン ポーネントとメソッド一覧を取り出す
         /// </summary>
         private void Extract()
         {
             if (Resources.FindObjectsOfTypeAll<EditorWindow>().Contains(this) == false) { return; }
 
-            if (Selection.activeGameObject != null && IsPrefab(Selection.activeGameObject) == false)
+            var componentDatas = new List<ComponentData>();
+
+            // Hierarchyビューで選択しているGameObject
+            Selection.gameObjects
+            .Where(o => o != null)
+            .Where(o => IsPrefab(o) == false)
+            .ToList()
+            .ForEach(obj =>
             {
                 // コンポーネント取得
-                this.componentTypes = GetAllComponents(Selection.activeGameObject)
+                var componentTypes = GetAllComponents(obj)
                     .Where(type => type.ToString().Split('.')[0] != "UnityEngine")
                     .ToArray();
+                componentDatas.AddRange(componentTypes.Select(t => new ComponentData(obj, ObjectType.GameObject, t)));
+            });
 
-                // メソッド取得
-                this.methodsCollection = this.componentTypes
-                    .Select(type => ExtractMethods(type))
-                    .Select(methodInfos => methodInfos.Select(m => new MethodData(m)).ToArray()).ToArray();
-
-                this.isOpen = this.componentTypes.Select(x => true).ToArray();
-            }
-            else
+            // Projectビューで選択しているスクリプト
+            Selection.objects
+            .Where(o => o != null)
+            .Where(o => IsScript(o) == true)
+            .ToList()
+            .ForEach(obj =>
             {
-                this.isOpen = null;
-                this.componentTypes = null;
-                this.methodsCollection = null;
-            }
+                // コンポーネント取得
+                var componentType = GetScriptClass(obj);
+                componentDatas.Add(new ComponentData(obj, ObjectType.MonoScript, componentType));
+            });
+
+            this.componentDatas = componentDatas.Where(c => c.IsSuccess).ToArray();
+            this.isOpen = this.componentDatas.Select(x => true).ToArray();
         }
 
         /// <summary>
-        /// メソッドを一括取得
+        /// ScriptアセットのクラスTypeを取得する
         /// </summary>
-        private static IEnumerable<MethodInfo> ExtractMethods(System.Type type)
+        private Type GetScriptClass(UnityEngine.Object script)
         {
-            var methods = type.GetMethods(
-                BindingFlags.Static
-                | BindingFlags.Public
-                | BindingFlags.NonPublic
-                | BindingFlags.Instance
-                );
+            var path = AssetDatabase.GetAssetPath(script);
+            var asset = (MonoScript)AssetDatabase.LoadAssetAtPath(path, typeof(MonoScript));
+            var scriptClass = MonoScripts.First(ms => ms == asset).GetClass();
 
-            return methods
-                .Where(m => m.DeclaringType == type)
-                .Where(m => m.Name[0] != '<')
-                .Where(m => IsProperty(m) == false);
-        }
-
-        /// <summary>
-        /// Propertyかどうか
-        /// </summary>
-        private static bool IsProperty(MethodInfo methodInfo)
-        {
-            switch (methodInfo.Name.Split('_')[0])
+            if (scriptClass == null)
             {
-                case "get":
-                case "set":
-                    return true;
-                default:
-                    return false;
+                Debug.LogError("class '" + script.name + "' not found \n");
+                return null;
             }
+            return scriptClass;
         }
 
         /// <summary>
@@ -255,198 +369,27 @@ namespace EasyScriptTester
         }
 
         /// <summary>
+        /// Scriptかどうか
+        /// </summary>
+        private static bool IsScript(UnityEngine.Object obj)
+        {
+            return obj.GetType() == typeof(MonoScript);
+        }
+
+        /// <summary>
         /// GameObjectにアタッチされているすべてのコンポーネントを取得
         /// </summary>
         private static IEnumerable<Type> GetAllComponents(GameObject target)
         {
-            List<Type> typeList = new List<Type>();
-            var mss = Resources.FindObjectsOfTypeAll<MonoScript>();
-            foreach (var ms in mss)
+            foreach (var ms in MonoScripts)
             {
                 var cls = ms.GetClass();
-                if (cls != null)
+                if (cls == null) { continue; }
+                if (cls.IsSubclassOf(typeof(MonoBehaviour)) && target.GetComponent(cls) != null)
                 {
-                    if (cls.IsSubclassOf(typeof(MonoBehaviour)) && target.GetComponent(cls) != null)
-                    {
-                        typeList.Add(cls);
-                    }
+                    yield return cls;
                 }
             }
-            return typeList;
-        }
-
-        /// <summary>
-        /// FoldOutをかっこよく表示
-        /// </summary>
-        private static bool Foldout(string title, bool display)
-        {
-            var style = new GUIStyle("ShurikenModuleTitle");
-            style.font = new GUIStyle(EditorStyles.label).font;
-            style.border = new RectOffset(15, 7, 4, 4);
-            style.fixedHeight = 22;
-            style.contentOffset = new Vector2(20f, -2f);
-
-            var rect = GUILayoutUtility.GetRect(16f, 22f, style);
-            GUI.Box(rect, title, style);
-
-            var e = Event.current;
-
-            var toggleRect = new Rect(rect.x + 4f, rect.y + 2f, 13f, 13f);
-            if (e.type == EventType.Repaint)
-            {
-                EditorStyles.foldout.Draw(toggleRect, false, false, display, false);
-            }
-
-            if (e.type == EventType.MouseDown && rect.Contains(e.mousePosition))
-            {
-                display = !display;
-                e.Use();
-            }
-
-            return display;
-        }
-
-        /// <summary>
-        /// 入力フィールドの表示
-        /// </summary>
-        static object InputField(String name, Type type, object _object)
-        {
-            if (inputFieldActionDict.ContainsKey(type))
-            {
-                return inputFieldActionDict[type].Invoke(name, _object);
-            }
-
-            if (type.IsSubclassOf(typeof(UnityEngine.Object)))
-            {
-                return inputFieldActionDict[typeof(UnityEngine.Object)].Invoke(name, _object);
-            }
-
-            // Enum
-            if (type.IsEnum)
-            {
-                return EditorGUILayout.EnumPopup(name, (Enum)_object, EmptyOptions);
-            }
-
-            // null check
-            if (_object == null)
-            {
-                EditorGUILayout.TextField(name, null, EmptyOptions);
-            }
-
-            // Unregistered Types
-            return EditorGUILayout.TextField(name, _object.ToString(), EmptyOptions);
-        }
-
-        /// <summary>
-        /// 入力フィールドロジックの登録
-        /// </summary>
-        private static void InitializeInputFieldAction()
-        {
-            inputFieldActionDict = new Dictionary<Type, Func<string, object, object>>();
-
-            // Register default actions
-            RegisterInputFieldAction(typeof(Int32), (name, obj) => EditorGUILayout.IntField(name, (Int32)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Double), (name, obj) => EditorGUILayout.DoubleField(name, (Double)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(String), (name, obj) => EditorGUILayout.TextField(name, (String)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Boolean), (name, obj) => EditorGUILayout.Toggle(name, (Boolean)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Single), (name, obj) => EditorGUILayout.FloatField(name, (Single)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Vector2), (name, obj) => EditorGUILayout.Vector2Field(name, (Vector2)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Vector3), (name, obj) => EditorGUILayout.Vector3Field(name, (Vector3)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Vector4), (name, obj) => EditorGUILayout.Vector4Field(name, (Vector4)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Color), (name, obj) => EditorGUILayout.ColorField(name, (Color)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(UnityEngine.Object), (name, obj) => EditorGUILayout.ObjectField(name, (UnityEngine.Object)obj, typeof(UnityEngine.Object), true, EmptyOptions));
-
-            RegisterInputFieldAction(typeof(Int64), (name, obj) => EditorGUILayout.LongField(name, (Int64)obj, EmptyOptions));
-            RegisterInputFieldAction(typeof(Char), (name, obj) => CharField(name, (Char)obj, EmptyOptions));
-
-            // Register array actions
-            RegisterInputFieldAction(typeof(Int32[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(String[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Boolean[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Single[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector2[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector3[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector4[]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Color[]), ArrayInputField);
-
-            RegisterInputFieldAction(typeof(Int32[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(String[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Boolean[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Single[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector2[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector3[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector4[][]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Color[][]), ArrayInputField);
-
-            RegisterInputFieldAction(typeof(Int32[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(String[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Boolean[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Single[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector2[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector3[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Vector4[,]), ArrayInputField);
-            RegisterInputFieldAction(typeof(Color[,]), ArrayInputField);
-        }
-
-        /// <summary>
-        /// 入力フィールドロジックの登録
-        /// </summary>
-        private static void RegisterInputFieldAction(Type type, Func<string, object, object> func)
-        {
-            inputFieldActionDict.Add(type, func);
-        }
-
-        /// <summary>
-        /// char型の入力フィールド
-        /// </summary>
-        /// <returns></returns>
-        private static char CharField(string label, char c, params GUILayoutOption[] option)
-        {
-            var s = EditorGUILayout.TextField(label, c.ToString(), EmptyOptions);
-            return c == default(char) ? ' ' : s[0];
-        }
-
-        /// <summary>
-        /// 配列の入力フィールド
-        /// </summary>
-        static object ArrayInputField(string name, object obj)
-        {
-            EditorGUILayout.LabelField(name);
-            return null;
-            //if (obj == null) { return null; }
-
-            //var array = (Array)obj;
-
-            //switch (array.Rank)
-            //{
-            //    case 1:
-            //        EditorGUI.indentLevel++;
-            //        for (int i = 0; i < array.Length; i++)
-            //        {
-            //            var value = array.GetValue(i);
-            //            return InputField("Element " + i, value.GetType(), value);
-            //        }
-            //        EditorGUI.indentLevel--;
-            //        break;
-            //    case 2:
-            //        EditorGUI.indentLevel++;
-            //        for (int i = 0; i < array.GetLength(0); i++)
-            //        {
-            //            EditorGUILayout.LabelField("Element " + i);
-            //            EditorGUI.indentLevel++;
-            //            for (int j = 0; j < array.GetLength(1); j++)
-            //            {
-            //                var value = array.GetValue(i, j);
-            //                return InputField("Element " + j, value.GetType(), value);
-            //            }
-            //            EditorGUI.indentLevel--;
-            //        }
-            //        EditorGUI.indentLevel--;
-            //        break;
-            //}
-
-            //throw new System.NotImplementedException();
         }
     }
-
 }
