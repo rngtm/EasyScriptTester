@@ -14,7 +14,7 @@ namespace EasyScriptTester
     /// </summary>
     public class ComponentData
     {
-        #region Fields
+        #region Properties
         /// <summary>
         /// コンポーネント取得に成功した
         /// </summary>
@@ -44,7 +44,7 @@ namespace EasyScriptTester
         /// このコンポーネントが持つメソッドの情報
         /// </summary>
         public MethodData[] MethodDatas { get; private set; }
-        #endregion Fields
+        #endregion Properties
 
         /// <summary>
         /// コンストラクタ

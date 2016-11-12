@@ -123,81 +123,38 @@ namespace EasyScriptTester
                     if (GUILayout.Button("実行", GUILayout.Width(ButtonWidth), GUILayout.Height(ButtonHeight)))
                     {
                         var parameters = method.Parameters.Select(p => Convert.ChangeType(p.Value, p.ParameterInfo.ParameterType)).ToArray();
+                        object result = null;
+                        try
+                        {
+                            if (IsEditorScript(componentType)) // Editor script
+                            {
+                                result = InvokeEditorScriptMethod(method, componentType, parameters);
+                            }
+                            else
+                            if (componentType.IsSubclassOf(typeof(MonoBehaviour))) // MonoBehaviour script
+                            {
+                                result = InvokeMonobehaviourMethod(method, componentType, objectType, parameters, item.componentData.Object);
+                            }
+                            else // other script
+                            {
+                                result = InvokeOtherMethod(method, componentType, parameters);
+                            }
+                            
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogError(e.Message);
+                        }
+
                         var args = parameters.Length == 0 ? "" : parameters.Select(p => (p ?? "null").ToString()).Aggregate((s, next) => s + "," + next);
-                        Debug.Log(method.MethodInfo.Name + " (" + args + ")");
-
-                        if (IsEditorScript(componentType)) // Editor script
+                        var msg = method.MethodInfo.Name + " (" + args + ")";
+                        var isMonobehaviour = componentType.IsSubclassOf(typeof(MonoBehaviour));
+                        var isCoroutine = method.MethodInfo.ReturnType == typeof(IEnumerator);
+                        if (!(isMonobehaviour && isCoroutine)) // コルーチンの場合はメソッド返却値を表示させない
                         {
-                            if (componentType.IsSubclassOf(typeof(Editor)))
-                            {
-                                var instance = ScriptableObject.CreateInstance(componentType);
-                                method.MethodInfo.Invoke(instance, parameters);
-                            }
-                            else
-                            if (componentType.IsSubclassOf(typeof(EditorWindow)))
-                            {
-                                var instance = ScriptableObject.CreateInstance(componentType);
-                                method.MethodInfo.Invoke(instance, parameters);
-                            }
-                            else
-                            {
-                                var instance = Activator.CreateInstance(componentType);
-                                method.MethodInfo.Invoke(instance, parameters);
-                            }
+                            msg += "\n-> " + ConvertUtility.Convert(result, method.MethodInfo.ReturnType);
                         }
-                        else
-                        if (componentType.IsSubclassOf(typeof(MonoBehaviour))) // MonoBehaviour script
-                        {
-                            var selectObject = item.componentData.Object;
-                            switch (objectType)
-                            {
-                                case ObjectType.GameObject:
-                                    {
-                                        if (method.MethodInfo.ReturnType == typeof(IEnumerator))
-                                        {
-                                            // コルーチン実行
-                                            var component = (selectObject as GameObject).GetComponent(componentType);
-                                            var monoBehaviourType = componentType.BaseType;
-                                            var argumentTypes = new Type[] { typeof(IEnumerator) };
-                                            var coroutine = method.MethodInfo.Invoke(component, parameters);
-                                            var startCoroutine = monoBehaviourType.GetMethod("StartCoroutine", argumentTypes);
-                                            startCoroutine.Invoke(component, new object[] { coroutine });        
-
-                                            if (EditorApplication.isPlaying == false) { Debug.LogWarning("コルーチンはエディタ停止中には実行できません\nCoroutine can only be called in play mode"); } 
-                                        }
-                                        else
-                                        {
-                                            // メソッド実行
-                                            var component = (selectObject as GameObject).GetComponent(componentType);
-                                            method.MethodInfo.Invoke(component, parameters);
-                                        }
-                                        
-                                        break;
-                                    }
-                                case ObjectType.MonoScript:
-                                    {
-                                        // メソッド実行
-                                        var component = new GameObject().AddComponent(componentType);
-                                        method.MethodInfo.Invoke(component, parameters);
-                                        DestroyImmediate(component.gameObject);
-                                        
-                                        if (method.MethodInfo.ReturnType == typeof(IEnumerator))
-                                        {
-                                            // スクリプト選択時のコルーチン呼び出しは未実装
-                                            Debug.LogWarning("スクリプトファイルのコルーチン実行は非対応です\nScript Coroutine is not supported ");
-                                        }
-                                        break;
-                                    }
-                                default:
-                                    throw new System.NotImplementedException();
-
-                            }
-                        }
-                        else // other script
-                        {
-                            var instance = Activator.CreateInstance(componentType);
-                            method.MethodInfo.Invoke(instance, parameters);
-                        }
+                        Debug.Log(msg);
                     }
 
                     // メソッド表示
@@ -208,13 +165,13 @@ namespace EasyScriptTester
                     // メソッドが引数を持っていた場合は引数入力フィールドを出す
                     method.Parameters.ToList().ForEach(p =>
                     {
-                      string label = this.GetParameterLabel(p.ParameterInfo);
+                        string label = this.GetParameterLabel(p.ParameterInfo);
 
-                      GUILayout.Space(-1f);
-                      EditorGUI.indentLevel += 2;
-                      p.Value = CustomUI.InputField(label, p.ParameterInfo.ParameterType, p.Value);
-                      EditorGUI.indentLevel -= 2;
-                  });
+                        GUILayout.Space(-1f);
+                        EditorGUI.indentLevel += 2;
+                        p.Value = CustomUI.InputField(label, p.ParameterInfo.ParameterType, p.Value);
+                        EditorGUI.indentLevel -= 2;
+                    });
 
                     GUILayout.Space(1f);
                     this.Line(1);
@@ -224,6 +181,116 @@ namespace EasyScriptTester
             }
 
             EditorGUILayout.EndScrollView();
+        }
+
+        /// <summary>
+        /// Monobehaviour継承クラスのメソッドを実行する
+        /// </summary>
+        private static object InvokeMonobehaviourMethod(MethodData method, Type componentType, ObjectType objectType, object[] parameters, object selectObject)
+        {
+            object result;
+            switch (objectType)
+            {
+                case ObjectType.GameObject:
+                    result = InvokeMonobehaviourComponentMethod(method, componentType, parameters, selectObject);
+                    break;
+                case ObjectType.MonoScript:
+                    // メソッド実行
+                    result = InvokeMonobehaviourScriptMethod(method, componentType, parameters);
+                    break;
+                default:
+                    throw new System.NotImplementedException();
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Monobehaviourスクリプトアセットのメソッドを実行する
+        /// </summary>
+        private static object InvokeMonobehaviourScriptMethod(MethodData method, Type componentType, object[] parameters)
+        {
+            object result;
+            var newGameObject = new GameObject();
+            var component = newGameObject.AddComponent(componentType);
+            result = method.MethodInfo.Invoke(component, parameters);
+            DestroyImmediate(newGameObject);
+
+            if (method.MethodInfo.ReturnType == typeof(IEnumerator))
+            {
+                Debug.LogWarning("Monobehaviour継承スクリプトのファイルからのコルーチン実行は非対応です\nExecuting Coroutine in Monobehaviour script file is not supported");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Monobehaviourコンポーネントのメソッドを実行する
+        /// </summary>
+        private static object InvokeMonobehaviourComponentMethod(MethodData method, Type componentType, object[] parameters, object selectObject)
+        {
+            object result;
+            if (method.MethodInfo.ReturnType == typeof(IEnumerator))
+            {
+                // コルーチン実行
+                var component = (selectObject as GameObject).GetComponent(componentType);
+                var monoBehaviourType = componentType.BaseType;
+                var argumentTypes = new Type[] { typeof(IEnumerator) };
+                var coroutine = method.MethodInfo.Invoke(component, parameters);
+                var startCoroutine = monoBehaviourType.GetMethod("StartCoroutine", argumentTypes);
+
+                EditorApplication.delayCall += () => // 1フレーム遅らせる
+                {
+                    startCoroutine.Invoke(component, new object[] { coroutine });
+                };
+
+                if (EditorApplication.isPlaying == false) { Debug.LogWarning("コルーチンはエディタ停止中には実行できません\nCoroutine can only be executed in play mode"); }
+                result = coroutine;
+            }
+            else
+            {
+                // メソッド実行
+                var component = (selectObject as GameObject).GetComponent(componentType);
+                result = method.MethodInfo.Invoke(component, parameters);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// エディタースクリプトのメソッドを実行する
+        /// </summary>
+        private static object InvokeEditorScriptMethod(MethodData method, Type componentType, object[] parameters)
+        {
+            object result;
+            if (componentType.IsSubclassOf(typeof(Editor)))
+            {
+                var instance = ScriptableObject.CreateInstance(componentType);
+                result = method.MethodInfo.Invoke(instance, parameters);
+            }
+            else
+            if (componentType.IsSubclassOf(typeof(EditorWindow)))
+            {
+                var instance = ScriptableObject.CreateInstance(componentType);
+                result = method.MethodInfo.Invoke(instance, parameters);
+            }
+            else
+            {
+                var instance = Activator.CreateInstance(componentType);
+                result = method.MethodInfo.Invoke(instance, parameters);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// その他オブジェクトのメソッドを実行する
+        /// </summary>
+        private static object InvokeOtherMethod(MethodData method, Type componentType, object[] parameters)
+        {
+            object result;
+            var instance = Activator.CreateInstance(componentType);
+            result = method.MethodInfo.Invoke(instance, parameters);
+            return result;
         }
 
         /// <summary>
@@ -298,6 +365,7 @@ namespace EasyScriptTester
             if (_needSetCallbacks)
             {
                 CustomUI.Initialize();
+                ConvertUtility.Initialize();
                 _needSetCallbacks = false;
                 Selection.selectionChanged += this.Extract;
                 this.Extract();
