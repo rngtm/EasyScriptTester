@@ -18,14 +18,14 @@ namespace EasyScriptTester
     public class ScriptTestWindow : EditorWindow
     {
         /// <summary>
-        /// ボタンの大きさ
+        /// メソッド実行ボタンの大きさ
         /// </summary>
-        private const float ButtonWidth = 32f;
+        private const float MethodCallButtonWidth = 32f;
 
         /// <summary>
-        /// ボタンの大きさ
+        /// メソッド実行ボタンの大きさ
         /// </summary>
-        private const float ButtonHeight = 17f;
+        private const float MethodCallButtonHeight = 17f;
 
         /// <summary>
         /// インデント幅
@@ -33,7 +33,6 @@ namespace EasyScriptTester
         private const float IndentSize = 18f;
 
         #region Variables
-
         /// <summary>
         /// 選択しているObjectのComponenttのデータ
         /// </summary>
@@ -96,7 +95,16 @@ namespace EasyScriptTester
 
             this.scrollPosition = EditorGUILayout.BeginScrollView(this.scrollPosition);
 
-            // コンポーネントとメソッド一覧 表示
+            this.ShowComponents();
+
+            EditorGUILayout.EndScrollView();
+        }
+
+        /// <summary>
+        /// コンポーネントとメソッドの一覧を表示
+        /// </summary>
+        private void ShowComponents()
+        {
             foreach (var item in this.componentDatas.Select((data, i) => new { componentData = data, index = i }))
             {
                 var index = item.index;
@@ -109,9 +117,13 @@ namespace EasyScriptTester
                 var scriptType = componentData.ScriptType;
                 var componentLabel = this.GetComponentLabel(componentType, objectType, scriptType);
                 isOpen[index] = CustomUI.Foldout(componentLabel, isOpen[index]);
-                if (isOpen[index] == false) { continue; }
+                GUILayout.Space(-22f);
+                ScriptOpenButton(componentType.Name);
+                
+                GUILayout.Space(18f);
 
-                GUILayout.Space(-5f);
+                if (isOpen[index] == false) { continue; }
+                GUILayout.Space(-2f);
 
                 // メソッド一覧 表示
                 this.componentDatas[index].MethodDatas.ToList().ForEach(method =>
@@ -120,7 +132,7 @@ namespace EasyScriptTester
                     EditorGUILayout.BeginHorizontal();
                     GUILayout.Space(IndentSize);
 
-                    if (GUILayout.Button("実行", GUILayout.Width(ButtonWidth), GUILayout.Height(ButtonHeight)))
+                    if (GUILayout.Button("実行", GUILayout.Width(MethodCallButtonWidth), GUILayout.Height(MethodCallButtonHeight)))
                     {
                         var parameters = method.Parameters.Select(p => Convert.ChangeType(p.Value, p.ParameterInfo.ParameterType)).ToArray();
                         object result = null;
@@ -139,7 +151,7 @@ namespace EasyScriptTester
                             {
                                 result = InvokeOtherMethod(method, componentType, parameters);
                             }
-                            
+
                         }
                         catch (Exception e)
                         {
@@ -179,8 +191,21 @@ namespace EasyScriptTester
 
                 GUILayout.Space(12f);
             }
+        }
+        
+        /// <summary>
+        /// スクリプトを開くボタンの表示
+        /// </summary>
+        private static void ScriptOpenButton(string scriptName)
+        {
+            var style = new GUIStyle(GUI.skin.button);
+            var text = new GUIContent("Open");
+            var rect = GUILayoutUtility.GetRect(text, style, GUILayout.ExpandWidth(false));
+            rect.center = new Vector2(EditorGUIUtility.currentViewWidth - rect.width / 2 - 6, rect.center.y - 2);
 
-            EditorGUILayout.EndScrollView();
+            if (GUI.Button(rect, text, GUI.skin.button)) { OpenInEditor(scriptName, 0); }
+
+            GUILayout.Space(-GUI.skin.button.lineHeight - 7f);
         }
 
         /// <summary>
@@ -485,6 +510,36 @@ namespace EasyScriptTester
                 if (cls.IsSubclassOf(typeof(MonoBehaviour)) && target.GetComponent(cls) != null)
                 {
                     yield return cls;
+                }
+            }
+        }
+
+        /// <summary>
+        /// スクリプトを外部エディタで開く
+        /// </summary>
+        public static void OpenInEditor(string scriptName, int scriptLine)
+        {
+            string[] paths = AssetDatabase.GetAllAssetPaths();
+
+            foreach (string path in paths)
+            {
+                string scriptPath = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (scriptPath.Equals(scriptName))
+                {
+                    MonoScript script = AssetDatabase.LoadAssetAtPath(path, typeof(MonoScript)) as MonoScript;
+                    if (script != null)
+                    {
+                        if (!AssetDatabase.OpenAsset(script, scriptLine))
+                        {
+                            Debug.LogWarning("Couldn't open script : " + scriptName);
+                        }
+                        break;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Couldn't open script : " + scriptName);
+                    }
+                    break;
                 }
             }
         }

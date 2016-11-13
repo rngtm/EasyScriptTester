@@ -4,7 +4,6 @@
 ///-----------------------------------
 namespace EasyScriptTester
 {
-    using System;
     using System.Linq;
     using System.Reflection;
 
@@ -29,35 +28,9 @@ namespace EasyScriptTester
         public MethodData(MethodInfo methodInfo)
         {
             this.MethodInfo = methodInfo;
-
-            this.Parameters = methodInfo.GetParameters().Select(p =>
-            {
-                return new MethodData.ParameterData
-                {
-                    ParameterInfo = p,
-                    Value = GetDefaultValue(p.ParameterType),
-                };
-            }).ToArray();
+            this.Parameters = methodInfo.GetParameters()
+                .Select(p => new ParameterData(p))
+                .ToArray();
         }
-
-        /// <summary>
-        /// Typeの規定値を取得
-        /// </summary>
-        private static object GetDefaultValue(Type type)
-        {
-            if (type.IsValueType)
-            {
-                return Activator.CreateInstance(type);
-            }
-
-            return null;
-        }
-
-        public class ParameterData
-        {
-            public ParameterInfo ParameterInfo;
-            public object Value;
-        }
-
     }
 }

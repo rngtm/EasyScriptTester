@@ -9,6 +9,8 @@ namespace EasyScriptTester
     using System.Reflection;
     using System.Linq;
 
+    using Object = UnityEngine.Object;
+
     /// <summary>
     /// Component data
     /// </summary>

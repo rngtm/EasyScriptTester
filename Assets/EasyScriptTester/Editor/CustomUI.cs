@@ -68,6 +68,9 @@ namespace EasyScriptTester
             var rect = GUILayoutUtility.GetRect(16f, 22f, style);
             GUI.Box(rect, title, style);
 
+            var clickRect = new Rect(rect);
+            clickRect.width -= 180f;
+
             var e = Event.current;
 
             var toggleRect = new Rect(rect.x + 4f, rect.y + 2f, 13f, 13f);
@@ -76,7 +79,7 @@ namespace EasyScriptTester
                 EditorStyles.foldout.Draw(toggleRect, false, false, display, false);
             }
 
-            if (e.type == EventType.MouseDown && rect.Contains(e.mousePosition))
+            if (e.type == EventType.MouseDown && clickRect.Contains(e.mousePosition))
             {
                 display = !display;
                 e.Use();
@@ -88,7 +91,7 @@ namespace EasyScriptTester
         /// <summary>
         /// 入力フィールドの表示
         /// </summary>
-        public static object InputField(String name, Type type, object _object)
+        public static object InputField(string name, Type type, object _object)
         {
             object result;
 
@@ -99,7 +102,6 @@ namespace EasyScriptTester
             else
             {
                 EditorGUILayout.BeginHorizontal();
-                // EditorGUILayout.LabelField(name, GUILayout.Width(LabelWidth));
                 EditorGUILayout.SelectableLabel(name, GUILayout.Width(LabelWidth), GUILayout.Height(LabelHeight));
 
                 result = InputFieldInternal(type, _object);
