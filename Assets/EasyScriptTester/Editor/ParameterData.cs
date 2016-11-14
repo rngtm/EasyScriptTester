@@ -6,6 +6,8 @@ namespace EasyScriptTester
 {
     using System;
     using System.Reflection;
+    using UnityEditor;
+    using UnityEditorInternal;
 
     /// <summary>
     /// parameter data
@@ -22,13 +24,24 @@ namespace EasyScriptTester
         /// </summary>
         public object Value { get; set; }
 
+        public ReorderableList ReorderableList { get; private set; }
+
         /// <summary>
         /// コンストラクタ
         /// </summary>
         public ParameterData(ParameterInfo parameterInfo)
         {
             this.ParameterInfo = parameterInfo;
-            this.Value = GetDefaultValue(parameterInfo.ParameterType);
+            var parameterType = this.ParameterInfo.ParameterType;
+            if (parameterType.IsArray)
+            {
+                var headerLabel = parameterInfo.Name + " : " + parameterType.Name;
+                this.ReorderableList = CustomUI.CreateReorderableList(headerLabel, parameterType);
+            }
+            else
+            {
+                this.Value = GetDefaultValue(parameterInfo.ParameterType);
+            }
         }
 
         /// <summary>

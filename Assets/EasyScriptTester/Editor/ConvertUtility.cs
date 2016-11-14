@@ -81,10 +81,11 @@ namespace EasyScriptTester
                     switch (array.Rank)
                     {
                         case 1:
-                            return Enumerable.Range(0, array.Length)
+                            return string.Join(", ", Enumerable.Range(0, array.Length)
                                 .Select(i => array.GetValue(i))
                                 .Select(o => _convertNonGenericTypeAction[elementType].Invoke(o))
-                                .Aggregate((s, next) => s + ", " + next);
+                                .ToArray()
+                            );
                         default:
                             break;
                     }
@@ -119,11 +120,13 @@ namespace EasyScriptTester
 
             RegisterNonGenericConvertAction(typeof(IEnumerable), (obj) => IEnumerableConvertAction(obj));
             RegisterNonGenericConvertAction(typeof(IEnumerator), (obj) => IEnumeratorConvertAction(obj));
+            RegisterNonGenericConvertAction(typeof(IList), (obj) => IEnumerableConvertAction(obj));
 
             // Register Generic actions
             RegisterGenericConvertAction(typeof(List<>), (obj) => IEnumerableConvertAction(obj));
             RegisterGenericConvertAction(typeof(IEnumerable<>), (obj) => IEnumerableConvertAction(obj));
             RegisterGenericConvertAction(typeof(IEnumerator<>), (obj) => IEnumerableConvertAction(obj));
+            RegisterGenericConvertAction(typeof(IList<>), (obj) => IEnumerableConvertAction(obj));
         }
 
         /// <summary>
