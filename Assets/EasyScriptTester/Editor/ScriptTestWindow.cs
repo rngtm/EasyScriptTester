@@ -200,6 +200,8 @@ namespace EasyScriptTester
 
                     EditorGUILayout.EndHorizontal();
 
+                    GUILayout.Space(1f);
+
                     // メソッドが引数を持っていた場合は引数入力フィールドを出す
                     method.Parameters.ToList().ForEach(p =>
                     {
@@ -401,9 +403,18 @@ namespace EasyScriptTester
         /// </summary>
         private static object InvokeOtherMethod(MethodData method, Type componentType, object[] parameters)
         {
+
             object result;
-            var instance = Activator.CreateInstance(componentType);
-            result = method.MethodInfo.Invoke(instance, parameters);
+            if (componentType.IsAbstract) // static class, abstract class
+            {
+                result = method.MethodInfo.Invoke(null, parameters);
+            }
+            else
+            {
+                var instance = Activator.CreateInstance(componentType);
+                result = method.MethodInfo.Invoke(instance, parameters);
+            }
+
             return result;
         }
 

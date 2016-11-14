@@ -31,7 +31,6 @@ namespace EasyScriptTester
 			if (elementType == typeof(Vector2)) { return ToArray<Vector2>(list); }
 			if (elementType == typeof(Vector3)) { return ToArray<Vector3>(list); }
 			if (elementType == typeof(Vector4)) { return ToArray<Vector4>(list); }
-            
 
             // unregistered type
             return ToArray<object>(list);

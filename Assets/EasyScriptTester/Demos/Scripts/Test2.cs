@@ -9,9 +9,9 @@ namespace EasyScriptTester.Demos
     /// <summary>
     /// Demo用のクラス
     /// </summary>
-    public class Test2
+    public static class Test2
     {
-        void Test(int[] x, int y)
+        static void Test(int[] x, int y)
         {
             for (int i = 0; i < x.Length; i++)
             {
